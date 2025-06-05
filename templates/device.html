@@ -1,0 +1,550 @@
+{% extends "base.html" %}
+
+{% block title %}{{ device.name }} - Weather Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-cpu"></i> {{ device.name }}
+            <small class="text-muted">({{ device.location }})</small>
+        </h2>
+        <div>
+            <a href="{{ url_for('iot_dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Informations sur l'appareil</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">ID de l'appareil</label>
+                        <input type="text" class="form-control" value="{{ device.id }}" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Clé API</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control api-key-field" value="{{ device.api_key }}" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="copyApiKey">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                        <small class="form-text text-muted">Utilisez cette clé pour authentifier votre appareil.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date de création</label>
+                        <input type="text" class="form-control" value="{{ device.created_at }}" readonly>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <p class="mb-0">
+                        <a href="#" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteDeviceModal">
+                            <i class="bi bi-trash"></i> Supprimer l'appareil
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Données en temps réel</h5>
+                    <div>
+                        <button id="refreshData" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-arrow-clockwise"></i> Actualiser
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <h1 id="current-temp" class="display-4">--.-</h1>
+                                    <p class="lead">Température (°C)</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-info text-white">
+                                <div class="card-body text-center">
+                                    <h1 id="current-humidity" class="display-4">--.-</h1>
+                                    <p class="lead">Humidité (%)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="charts-container">
+                        <div class="mb-3">
+                            <canvas id="temperatureChart"></canvas>
+                        </div>
+                        <div>
+                            <canvas id="humidityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Historique des mesures</h5>
+            <div>
+                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#exportDataModal">
+                    <i class="bi bi-download"></i> Exporter les données
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Heure</th>
+                            <th>Température (°C)</th>
+                            <th>Humidité (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="readings-table">
+                        {% if readings %}
+                            {% for reading in readings %}
+                            <tr>
+                                <td>{{ reading.timestamp.split()[0] }}</td>
+                                <td>{{ reading.timestamp.split()[1] }}</td>
+                                <td>{{ reading.temperature }}</td>
+                                <td>{{ reading.humidity }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center">Aucune donnée disponible pour cet appareil</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Device Modal -->
+<div class="modal fade" id="deleteDeviceModal" tabindex="-1" aria-labelledby="deleteDeviceModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteDeviceModalLabel">Confirmer la suppression</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer cet appareil ? Cette action est irréversible et toutes les données associées seront perdues.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <form action="{{ url_for('delete_device', device_id=device.id) }}" method="POST">
+                    <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Data Modal -->
+<div class="modal fade" id="exportDataModal" tabindex="-1" aria-labelledby="exportDataModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportDataModalLabel">Exporter les données</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="dateRange" class="form-label">Plage de dates</label>
+                    <select class="form-select" id="dateRange">
+                        <option value="7">7 derniers jours</option>
+                        <option value="30">30 derniers jours</option>
+                        <option value="90">90 derniers jours</option>
+                        <option value="all">Toutes les données</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="fileFormat" class="form-label">Format de fichier</label>
+                    <select class="form-select" id="fileFormat">
+                        <option value="csv">CSV</option>
+                        <option value="json">JSON</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <a href="{{ url_for('export_device_data', device_id=device.id) }}" class="btn btn-primary">Exporter</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Device Arduino Code Modal -->
+<div class="modal fade" id="deviceCodeModal" tabindex="-1" aria-labelledby="deviceCodeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deviceCodeModalLabel">Code pour Arduino/ESP8266</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Utilisez ce code comme point de départ pour connecter votre appareil à Weather Dashboard.</p>
+                <ul class="nav nav-tabs" id="codeTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="arduino-tab" data-bs-toggle="tab" data-bs-target="#arduino" type="button" role="tab" aria-controls="arduino" aria-selected="true">Arduino (ESP8266/ESP32)</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="python-tab" data-bs-toggle="tab" data-bs-target="#python" type="button" role="tab" aria-controls="python" aria-selected="false">Python (Raspberry Pi)</button>
+                    </li>
+                </ul>
+                <div class="tab-content" id="codeTabContent">
+                    <div class="tab-pane fade show active" id="arduino" role="tabpanel" aria-labelledby="arduino-tab">
+                        <pre><code class="language-cpp">#include &lt;Arduino.h&gt;
+#ifdef ESP32
+  #include &lt;WiFi.h&gt;
+  #include &lt;HTTPClient.h&gt;
+#else
+  #include &lt;ESP8266WiFi.h&gt;
+  #include &lt;ESP8266HTTPClient.h&gt;
+#endif
+#include &lt;ArduinoJson.h&gt;
+#include &lt;DHT.h&gt;
+
+// Remplacez par vos identifiants WiFi
+const char* ssid = "votre_ssid";
+const char* password = "votre_mot_de_passe";
+
+// URL et API Key de votre appareil
+const char* apiUrl = "{{ request.url_root }}api/data";
+const char* apiKey = "{{ device.api_key }}";
+
+// Configuration du capteur DHT
+#define DHTPIN 2
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
+
+// Intervalle d'envoi (300000ms = 5 minutes)
+const unsigned long INTERVAL = 300000;
+unsigned long previousMillis = 0;
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  WiFi.begin(ssid, password);
+  Serial.println("Connexion au WiFi...");
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConnecté !");
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+  
+  if (currentMillis - previousMillis >= INTERVAL) {
+    previousMillis = currentMillis;
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      float temperature = dht.readTemperature();
+      float humidity = dht.readHumidity();
+      
+      if (!isnan(temperature) && !isnan(humidity)) {
+        sendData(temperature, humidity);
+      }
+    }
+  }
+}
+
+void sendData(float temperature, float humidity) {
+  HTTPClient http;
+  http.begin(apiUrl);
+  http.addHeader("Content-Type", "application/json");
+  
+  StaticJsonDocument&lt;200&gt; doc;
+  doc["api_key"] = apiKey;
+  doc["temperature"] = temperature;
+  doc["humidity"] = humidity;
+  
+  String json;
+  serializeJson(doc, json);
+  
+  int httpCode = http.POST(json);
+  if (httpCode == 200) {
+    Serial.println("Données envoyées !");
+  } else {
+    Serial.print("Erreur: ");
+    Serial.println(httpCode);
+  }
+  
+  http.end();
+}</code></pre>
+                    </div>
+                    <div class="tab-pane fade" id="python" role="tabpanel" aria-labelledby="python-tab">
+                        <pre><code class="language-python">import requests
+import time
+import Adafruit_DHT  # pip install Adafruit_DHT
+from datetime import datetime
+
+// Configuration
+API_URL = "{{ request.url_root }}api/data"
+API_KEY = "{{ device.api_key }}"
+DHT_SENSOR = Adafruit_DHT.DHT22
+DHT_PIN = 4  // GPIO pin sur Raspberry Pi
+
+// Intervalle d'envoi en secondes
+INTERVAL = 300  // 5 minutes
+
+def read_sensor():
+    """Lire les données du capteur DHT"""
+    humidity, temperature = Adafruit_DHT.read_retry(DHT_SENSOR, DHT_PIN)
+    if humidity is not None and temperature is not None:
+        return temperature, humidity
+    else:
+        print("Échec de lecture du capteur")
+        return None, None
+
+def send_data(temperature, humidity):
+    """Envoyer les données à l'API"""
+    data = {
+        "api_key": API_KEY,
+        "temperature": temperature,
+        "humidity": humidity,
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    try:
+        response = requests.post(API_URL, json=data)
+        if response.status_code == 200:
+            print(f"Données envoyées - Temp: {temperature}°C, Humidité: {humidity}%")
+            return True
+        else:
+            print(f"Erreur: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        print(f"Erreur: {str(e)}")
+        return False
+
+def main():
+    print("Weather Dashboard - Script capteur")
+    
+    while True:
+        temperature, humidity = read_sensor()
+        if temperature is not None and humidity is not None:
+            send_data(temperature, humidity)
+        
+        print(f"Attente de {INTERVAL} secondes...")
+        time.sleep(INTERVAL)
+
+if __name__ == "__main__":
+    main()</code></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Variables for charts
+let temperatureChart;
+let humidityChart;
+let deviceId = {{ device.id }};
+
+// Function to load device data
+function loadDeviceData() {
+    fetch(`/api/device_data/${deviceId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.readings.length > 0) {
+                updateCurrentValues(data.readings[0]);
+                updateCharts(data.readings);
+                updateTable(data.readings);
+            }
+        })
+        .catch(error => console.error('Error loading device data:', error));
+}
+
+// Update current temperature and humidity displays
+function updateCurrentValues(latestReading) {
+    document.getElementById('current-temp').textContent = latestReading.temperature;
+    document.getElementById('current-humidity').textContent = latestReading.humidity;
+}
+
+// Update charts with new data
+function updateCharts(readings) {
+    // Reverse readings to get chronological order
+    const chronologicalReadings = [...readings].reverse();
+    
+    const timestamps = chronologicalReadings.map(reading => reading.timestamp);
+    const temperatures = chronologicalReadings.map(reading => reading.temperature);
+    const humidities = chronologicalReadings.map(reading => reading.humidity);
+    
+    // Initialize or update temperature chart
+    if (!temperatureChart) {
+        const tempCtx = document.getElementById('temperatureChart').getContext('2d');
+        temperatureChart = new Chart(tempCtx, {
+            type: 'line',
+            data: {
+                labels: timestamps,
+                datasets: [{
+                    label: 'Température (°C)',
+                    data: temperatures,
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Température au fil du temps'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+    } else {
+        temperatureChart.data.labels = timestamps;
+        temperatureChart.data.datasets[0].data = temperatures;
+        temperatureChart.update();
+    }
+    
+    // Initialize or update humidity chart
+    if (!humidityChart) {
+        const humCtx = document.getElementById('humidityChart').getContext('2d');
+        humidityChart = new Chart(humCtx, {
+            type: 'line',
+            data: {
+                labels: timestamps,
+                datasets: [{
+                    label: 'Humidité (%)',
+                    data: humidities,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Humidité au fil du temps'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+    } else {
+        humidityChart.data.labels = timestamps;
+        humidityChart.data.datasets[0].data = humidities;
+        humidityChart.update();
+    }
+}
+
+// Update the readings table with new data
+function updateTable(readings) {
+    const tableBody = document.getElementById('readings-table');
+    
+    // Clear the table first
+    tableBody.innerHTML = '';
+    
+    if (readings.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="4" class="text-center">Aucune donnée disponible pour cet appareil</td>';
+        tableBody.appendChild(row);
+    } else {
+        readings.forEach(reading => {
+            const [date, time] = reading.timestamp.split(' ');
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${date}</td>
+                <td>${time}</td>
+                <td>${reading.temperature}</td>
+                <td>${reading.humidity}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+}
+
+// Copy API key to clipboard
+document.getElementById('copyApiKey').addEventListener('click', function() {
+    const apiKeyField = document.querySelector('.api-key-field');
+    apiKeyField.select();
+    document.execCommand('copy');
+    alert('Clé API copiée dans le presse-papier');
+});
+
+// Refresh data button
+document.getElementById('refreshData').addEventListener('click', function() {
+    loadDeviceData();
+});
+
+// Export data link update
+document.getElementById('exportDataModal').addEventListener('show.bs.modal', function() {
+    const exportBtn = this.querySelector('.btn-primary');
+    const dateRange = document.getElementById('dateRange').value;
+    const fileFormat = document.getElementById('fileFormat').value;
+    
+    exportBtn.href = `{{ url_for('export_device_data', device_id=device.id) }}?range=${dateRange}&format=${fileFormat}`;
+});
+
+document.getElementById('dateRange').addEventListener('change', function() {
+    const exportBtn = document.querySelector('#exportDataModal .btn-primary');
+    const dateRange = this.value;
+    const fileFormat = document.getElementById('fileFormat').value;
+    
+    exportBtn.href = `{{ url_for('export_device_data', device_id=device.id) }}?range=${dateRange}&format=${fileFormat}`;
+});
+
+document.getElementById('fileFormat').addEventListener('change', function() {
+    const exportBtn = document.querySelector('#exportDataModal .btn-primary');
+    const dateRange = document.getElementById('dateRange').value;
+    const fileFormat = this.value;
+    
+    exportBtn.href = `{{ url_for('export_device_data', device_id=device.id) }}?range=${dateRange}&format=${fileFormat}`;
+});
+
+// Load data when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadDeviceData();
+    
+    // Refresh data every 5 minutes
+    setInterval(loadDeviceData, 300000);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+
+{% block title %}Insights IA - Weather Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Insights IA Météo</h5>
+            </div>
+            <div class="card-body">
+                <p class="lead">
+                    Utilisez l'intelligence artificielle pour analyser vos données météo et obtenir des insights pertinents.
+                </p>
+                
+                {% if not has_data %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> Vous n'avez pas encore suffisamment de données pour générer des insights. Connectez vos appareils IoT et attendez qu'ils envoient des données.
+                    </div>
+                {% else %}
+                    <form id="analysisForm" class="mb-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="device_id" class="form-label">Appareil</label>
+                                <select class="form-control" id="device_id" name="device_id" required>
+                                    <option value="">Sélectionnez un appareil</option>
+                                    {% for device in devices %}
+                                        <option value="{{ device.id }}">{{ device.name }} ({{ device.location or 'Non localisé' }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="analysis_type" class="form-label">Type d'analyse</label>
+                                <select class="form-control" id="analysis_type" name="analysis_type" required>
+                                    <option value="">Sélectionnez un type d'analyse</option>
+                                    <option value="basic">Statistiques de base</option>
+                                    <option value="weather_patterns">Tendances météorologiques</option>
+                                    <option value="trends">Analyse de tendances</option>
+                                    <option value="chatgpt">Analyse IA complète (ChatGPT)</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-brain"></i> Générer des insights
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <div id="loadingSpinner" class="text-center my-5 d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                        <p class="mt-3">Analyse en cours... Veuillez patienter.</p>
+                    </div>
+                    
+                    <div id="resultsContainer" class="d-none">
+                        <h4 class="mb-3">Résultats de l'analyse</h4>
+                        
+                        <!-- Basic stats results -->
+                        <div id="basicResults" class="results-section d-none">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header">Température</div>
+                                        <div class="card-body">
+                                            <ul class="list-group list-group-flush">
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Minimale
+                                                    <span id="temp-min" class="badge bg-info rounded-pill">--</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Maximale
+                                                    <span id="temp-max" class="badge bg-danger rounded-pill">--</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Moyenne
+                                                    <span id="temp-avg" class="badge bg-primary rounded-pill">--</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Tendance
+                                                    <span id="temp-trend" class="badge bg-warning rounded-pill">--</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header">Humidité</div>
+                                        <div class="card-body">
+                                            <ul class="list-group list-group-flush">
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Minimale
+                                                    <span id="humidity-min" class="badge bg-info rounded-pill">--</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Maximale
+                                                    <span id="humidity-max" class="badge bg-danger rounded-pill">--</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Moyenne
+                                                    <span id="humidity-avg" class="badge bg-primary rounded-pill">--</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Tendance
+                                                    <span id="humidity-trend" class="badge bg-warning rounded-pill">--</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Weather patterns results -->
+                        <div id="weatherPatternsResults" class="results-section d-none">
+                            <div class="card mb-3">
+                                <div class="card-header">Patterns Météorologiques</div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <h6>Jours de pluie vs. jours secs</h6>
+                                                <canvas id="rainfallChart"></canvas>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <ul class="list-group list-group-flush">
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Jours de pluie
+                                                    <span id="rainy-days" class="badge bg-primary rounded-pill">--</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Jours secs
+                                                    <span id="dry-days" class="badge bg-warning rounded-pill">--</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Précipitations moyennes
+                                                    <span id="avg-rainfall" class="badge bg-info rounded-pill">--</span>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    Corrélation Température/Humidité
+                                                    <span id="temp-humidity-corr" class="badge bg-success rounded-pill">--</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Trends results -->
+                        <div id="trendsResults" class="results-section d-none">
+                            <div class="card mb-3">
+                                <div class="card-header">Analyse de Tendances</div>
+                                <div class="card-body">
+                                    <div class="alert alert-info">
+                                        <p id="trends-summary"></p>
+                                        <p><strong>Période d'analyse :</strong> <span id="data-period"></span></p>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card">
+                                                <div class="card-body text-center">
+                                                    <h5 class="card-title">Tendance de température</h5>
+                                                    <div id="temp-trend-icon" class="mb-3">
+                                                        <i class="fas fa-3x"></i>
+                                                    </div>
+                                                    <p id="temp-trend-text" class="card-text"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card">
+                                                <div class="card-body text-center">
+                                                    <h5 class="card-title">Tendance d'humidité</h5>
+                                                    <div id="humidity-trend-icon" class="mb-3">
+                                                        <i class="fas fa-3x"></i>
+                                                    </div>
+                                                    <p id="humidity-trend-text" class="card-text"></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ChatGPT results -->
+                        <div id="chatgptResults" class="results-section d-none">
+                            <div class="card mb-3">
+                                <div class="card-header">Analyse IA (ChatGPT)</div>
+                                <div class="card-body">
+                                    <div class="d-flex align-items-start mb-4">
+                                        <div class="flex-shrink-0">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg" alt="ChatGPT Logo" width="40" height="40">
+                                        </div>
+                                        <div class="flex-grow-1 ms-3">
+                                            <div class="bg-light p-3 rounded">
+                                                <p id="chatgpt-analysis"></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-3">
+                                        <h6>Avez-vous d'autres questions?</h6>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" placeholder="Posez une question sur vos données météo..." disabled>
+                                            <button class="btn btn-outline-primary" type="button" disabled>Demander</button>
+                                        </div>
+                                        <small class="text-muted">Cette fonctionnalité sera bientôt disponible.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if has_data %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const analysisForm = document.getElementById('analysisForm');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const resultsContainer = document.getElementById('resultsContainer');
+    const resultsSections = document.querySelectorAll('.results-section');
+    
+    // Chart.js vars
+    let rainfallChart = null;
+    
+    analysisForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Hide previous results and show loading spinner
+        resultsSections.forEach(section => section.classList.add('d-none'));
+        resultsContainer.classList.add('d-none');
+        loadingSpinner.classList.remove('d-none');
+        
+        // Get form data
+        const formData = new FormData(analysisForm);
+        const device_id = formData.get('device_id');
+        const analysis_type = formData.get('analysis_type');
+        
+        // Send analysis request
+        fetch('{{ url_for("analyze_data") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Erreur lors de l\'analyse des données');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Hide loading spinner and show results container
+            loadingSpinner.classList.add('d-none');
+            resultsContainer.classList.remove('d-none');
+            
+            // Display the correct results section based on analysis type
+            if (analysis_type === 'basic') {
+                showBasicResults(data);
+            } else if (analysis_type === 'weather_patterns') {
+                showWeatherPatternsResults(data);
+            } else if (analysis_type === 'trends') {
+                showTrendsResults(data);
+            } else if (analysis_type === 'chatgpt') {
+                showChatGPTResults(data);
+            }
+        })
+        .catch(error => {
+            loadingSpinner.classList.add('d-none');
+            alert('Erreur: ' + error.message);
+        });
+    });
+    
+    function showBasicResults(data) {
+        const basicResults = document.getElementById('basicResults');
+        basicResults.classList.remove('d-none');
+        
+        // Temperature data
+        document.getElementById('temp-min').textContent = data.temperature.min.toFixed(1) + '°C';
+        document.getElementById('temp-max').textContent = data.temperature.max.toFixed(1) + '°C';
+        document.getElementById('temp-avg').textContent = data.temperature.avg.toFixed(1) + '°C';
+        document.getElementById('temp-trend').textContent = data.temperature.trend === 'up' ? '↑ Hausse' : '↓ Baisse';
+        
+        // Humidity data
+        document.getElementById('humidity-min').textContent = data.humidity.min.toFixed(1) + '%';
+        document.getElementById('humidity-max').textContent = data.humidity.max.toFixed(1) + '%';
+        document.getElementById('humidity-avg').textContent = data.humidity.avg.toFixed(1) + '%';
+        document.getElementById('humidity-trend').textContent = data.humidity.trend === 'up' ? '↑ Hausse' : '↓ Baisse';
+    }
+    
+    function showWeatherPatternsResults(data) {
+        const weatherPatternsResults = document.getElementById('weatherPatternsResults');
+        weatherPatternsResults.classList.remove('d-none');
+        
+        // Update text data
+        document.getElementById('rainy-days').textContent = data.rainy_days;
+        document.getElementById('dry-days').textContent = data.dry_days;
+        document.getElementById('avg-rainfall').textContent = data.avg_rainfall.toFixed(2) + ' mm';
+        
+        const corrValue = data.temp_humidity_correlation;
+        let corrText = 'N/A';
+        if (corrValue !== null) {
+            corrText = corrValue.toFixed(2);
+            
+            // Add interpretation
+            if (corrValue > 0.7) {
+                corrText += ' (Forte +)';
+            } else if (corrValue > 0.3) {
+                corrText += ' (Modérée +)';
+            } else if (corrValue > -0.3) {
+                corrText += ' (Faible)';
+            } else if (corrValue > -0.7) {
+                corrText += ' (Modérée -)';
+            } else {
+                corrText += ' (Forte -)';
+            }
+        }
+        document.getElementById('temp-humidity-corr').textContent = corrText;
+        
+        // Create rainfall chart
+        const rainyDays = data.rainy_days;
+        const dryDays = data.dry_days;
+        
+        const rainfallCtx = document.getElementById('rainfallChart').getContext('2d');
+        
+        // Destroy previous chart if it exists
+        if (rainfallChart) {
+            rainfallChart.destroy();
+        }
+        
+        rainfallChart = new Chart(rainfallCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Jours de pluie', 'Jours secs'],
+                datasets: [{
+                    data: [rainyDays, dryDays],
+                    backgroundColor: ['rgba(54, 162, 235, 0.8)', 'rgba(255, 205, 86, 0.8)'],
+                    borderColor: ['rgb(54, 162, 235)', 'rgb(255, 205, 86)'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
+    }
+    
+    function showTrendsResults(data) {
+        const trendsResults = document.getElementById('trendsResults');
+        trendsResults.classList.remove('d-none');
+        
+        // Set period
+        document.getElementById('data-period').textContent = data.data_period;
+        
+        // Set temperature trend
+        const tempTrend = data.temperature_trend;
+        const tempTrendIcon = document.getElementById('temp-trend-icon').querySelector('i');
+        const tempTrendText = document.getElementById('temp-trend-text');
+        
+        if (tempTrend === 'increasing') {
+            tempTrendIcon.className = 'fas fa-temperature-high fa-3x text-danger';
+            tempTrendText.textContent = 'La température est en hausse sur la période analysée.';
+        } else if (tempTrend === 'decreasing') {
+            tempTrendIcon.className = 'fas fa-temperature-low fa-3x text-info';
+            tempTrendText.textContent = 'La température est en baisse sur la période analysée.';
+        } else {
+            tempTrendIcon.className = 'fas fa-equals fa-3x text-warning';
+            tempTrendText.textContent = 'La température est stable sur la période analysée.';
+        }
+        
+        // Set humidity trend
+        const humidTrend = data.humidity_trend;
+        const humidTrendIcon = document.getElementById('humidity-trend-icon').querySelector('i');
+        const humidTrendText = document.getElementById('humidity-trend-text');
+        
+        if (humidTrend === 'increasing') {
+            humidTrendIcon.className = 'fas fa-tint fa-3x text-primary';
+            humidTrendText.textContent = 'L\'humidité est en hausse sur la période analysée.';
+        } else if (humidTrend === 'decreasing') {
+            humidTrendIcon.className = 'fas fa-tint-slash fa-3x text-warning';
+            humidTrendText.textContent = 'L\'humidité est en baisse sur la période analysée.';
+        } else {
+            humidTrendIcon.className = 'fas fa-equals fa-3x text-info';
+            humidTrendText.textContent = 'L\'humidité est stable sur la période analysée.';
+        }
+        
+        // Generate summary
+        let summary = 'Selon l\'analyse des tendances, ';
+        if (tempTrend === 'increasing' && humidTrend === 'increasing') {
+            summary += 'le climat devient plus chaud et plus humide, ce qui peut indiquer un temps orageux à venir.';
+        } else if (tempTrend === 'increasing' && humidTrend === 'decreasing') {
+            summary += 'le climat devient plus chaud et plus sec, ce qui peut augmenter les risques de sécheresse.';
+        } else if (tempTrend === 'decreasing' && humidTrend === 'increasing') {
+            summary += 'le climat devient plus frais et plus humide, ce qui peut annoncer l\'arrivée de brouillards ou de temps pluvieux.';
+        } else if (tempTrend === 'decreasing' && humidTrend === 'decreasing') {
+            summary += 'le climat devient plus frais et plus sec, typique d\'un air continental hivernal.';
+        } else if (tempTrend === 'stable' && humidTrend !== 'stable') {
+            summary += `la température reste stable mais l'humidité ${humidTrend === 'increasing' ? 'augmente' : 'diminue'}.`;
+        } else if (tempTrend !== 'stable' && humidTrend === 'stable') {
+            summary += `l'humidité reste stable mais la température ${tempTrend === 'increasing' ? 'augmente' : 'diminue'}.`;
+        } else {
+            summary += 'les conditions météorologiques sont relativement stables pour la période analysée.';
+        }
+        
+        document.getElementById('trends-summary').textContent = summary;
+    }
+    
+    function showChatGPTResults(data) {
+        const chatgptResults = document.getElementById('chatgptResults');
+        chatgptResults.classList.remove('d-none');
+        
+        document.getElementById('chatgpt-analysis').textContent = data.analysis;
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

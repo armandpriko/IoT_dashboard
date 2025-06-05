@@ -1,0 +1,71 @@
+/* General styles */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* Card styles */
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+/* Dashboard styles */
+#current-temp, #current-humidity, #current-gdd {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin: 0.5rem 0;
+    color: #0d6efd;
+}
+
+/* Chart containers */
+canvas {
+    width: 100% !important;
+    height: 300px !important;
+}
+
+/* Table styles */
+.table-responsive {
+    margin-top: 1rem;
+}
+
+.table th {
+    background-color: #f8f9fa;
+}
+
+/* Form styles */
+.form-label {
+    font-weight: 500;
+}
+
+/* Footer styles */
+.footer {
+    background-color: #f8f9fa;
+    padding: 1rem 0;
+    margin-top: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    canvas {
+        height: 250px !important;
+    }
+    
+    #current-temp, #current-humidity, #current-gdd {
+        font-size: 2rem;
+    }
+}

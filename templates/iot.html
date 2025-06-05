@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+
+{% block title %}Connexion IoT - Weather Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Vos appareils IoT</h5>
+            </div>
+            <div class="card-body">
+                {% if devices %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Nom</th>
+                                    <th>Type</th>
+                                    <th>Localisation</th>
+                                    <th>Dernière connexion</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for device in devices %}
+                                <tr>
+                                    <td>{{ device.name }}</td>
+                                    <td>{{ device.device_type }}</td>
+                                    <td>{{ device.location }}</td>
+                                    <td>{{ device.last_connection or 'Jamais' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('view_device', device_id=device.id) }}" class="btn btn-sm btn-info">Détails</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        Vous n'avez pas encore connecté d'appareil IoT. Ajoutez-en un ci-dessous !
+                    </div>
+                {% endif %}
+                
+                <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
+                    <i class="fas fa-plus"></i> Ajouter un appareil
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Votre clé API</h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    Cette clé est nécessaire pour authentifier vos appareils IoT. Conservez-la en lieu sûr et ne la partagez avec personne.
+                </p>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="apiKey" value="{{ current_user.api_key or 'Aucune clé générée' }}" readonly>
+                    <button class="btn btn-outline-secondary" type="button" id="copyApiKey">Copier</button>
+                </div>
+                <button class="btn btn-warning" id="generateApiKey">{% if current_user.api_key %}Régénérer la clé{% else %}Générer une clé{% endif %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Microcontrôleurs supportés</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for mc in microcontrollers %}
+                    <div class="col-lg-4 col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ mc.name }}</h5>
+                                <p class="card-text">{{ mc.description }}</p>
+                                <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#instructionsModal" data-mc="{{ mc.name }}">
+                                    Voir les instructions
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Add Device -->
+<div class="modal fade" id="addDeviceModal" tabindex="-1" aria-labelledby="addDeviceModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('add_device') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addDeviceModalLabel">Ajouter un appareil</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nom de l'appareil</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="device_type" class="form-label">Type d'appareil</label>
+                        <select class="form-select" id="device_type" name="device_type" required>
+                            <option value="ESP8266">ESP8266</option>
+                            <option value="ESP32">ESP32</option>
+                            <option value="Raspberry Pi">Raspberry Pi</option>
+                            <option value="Arduino">Arduino</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="location" class="form-label">Localisation (optionnel)</label>
+                        <input type="text" class="form-control" id="location" name="location" placeholder="ex: Jardin, Toit, etc.">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Ajouter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Instructions -->
+<div class="modal fade" id="instructionsModal" tabindex="-1" aria-labelledby="instructionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="instructionsModalLabel">Instructions de connexion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-4">
+                    <h6>Configuration générale</h6>
+                    <p>
+                        Pour connecter votre appareil au Weather Dashboard, vous devez envoyer des données via des requêtes HTTP POST vers l'endpoint suivant :
+                    </p>
+                    <div class="bg-light p-2 rounded mb-2">
+                        <code>POST {{ request.host_url }}api/data</code>
+                    </div>
+                    <p>
+                        N'oubliez pas d'inclure votre clé API dans l'en-tête de la requête :
+                    </p>
+                    <div class="bg-light p-2 rounded mb-2">
+                        <code>X-API-Key: votre_clé_api</code>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <h6>Format des données</h6>
+                    <p>Envoyez vos données au format JSON avec la structure suivante :</p>
+                    <pre class="bg-light p-2 rounded">
+{
+  "device_id": 1,
+  "temperature": 25.5,
+  "humidity": 65.2,
+  "pressure": 1013.2,
+  "rainfall": 0,
+  "wind_speed": 10.4,
+  "wind_direction": "NE"
+}</pre>
+                </div>
+                <div id="esp32-code" class="device-code d-none">
+                    <h6>Exemple de code pour ESP32</h6>
+                    <pre class="bg-light p-2 rounded">
+#include &lt;WiFi.h&gt;
+#include &lt;HTTPClient.h&gt;
+#include &lt;ArduinoJson.h&gt;
+
+const char* ssid = "VOTRE_SSID";
+const char* password = "VOTRE_PASSWORD";
+const char* apiUrl = "{{ request.host_url }}api/data";
+const char* apiKey = "VOTRE_CLE_API";
+const int deviceId = 1; // ID de l'appareil que vous avez créé
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connexion au WiFi...");
+  }
+  
+  Serial.println("Connecté au WiFi");
+}
+
+void loop() {
+  // Lecture des capteurs (exemple)
+  float temperature = 25.5;  // Remplacer par la lecture réelle du capteur
+  float humidity = 65.2;     // Remplacer par la lecture réelle du capteur
+  
+  // Création du JSON
+  DynamicJsonDocument doc(200);
+  doc["device_id"] = deviceId;
+  doc["temperature"] = temperature;
+  doc["humidity"] = humidity;
+  
+  // Envoi des données
+  if(WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(apiUrl);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-API-Key", apiKey);
+    
+    String jsonString;
+    serializeJson(doc, jsonString);
+    
+    int httpResponseCode = http.POST(jsonString);
+    
+    if(httpResponseCode > 0) {
+      String response = http.getString();
+      Serial.println("Code HTTP: " + String(httpResponseCode));
+      Serial.println("Réponse: " + response);
+    } else {
+      Serial.println("Erreur: " + http.errorToString(httpResponseCode));
+    }
+    
+    http.end();
+  }
+  
+  delay(60000); // Envoi toutes les minutes
+}</pre>
+                </div>
+
+                <div id="esp8266-code" class="device-code d-none">
+                    <h6>Exemple de code pour ESP8266</h6>
+                    <pre class="bg-light p-2 rounded">
+#include &lt;ESP8266WiFi.h&gt;
+#include &lt;ESP8266HTTPClient.h&gt;
+#include &lt;ArduinoJson.h&gt;
+
+const char* ssid = "VOTRE_SSID";
+const char* password = "VOTRE_PASSWORD";
+const char* apiUrl = "{{ request.host_url }}api/data";
+const char* apiKey = "VOTRE_CLE_API";
+const int deviceId = 1; // ID de l'appareil que vous avez créé
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connexion au WiFi...");
+  }
+  
+  Serial.println("Connecté au WiFi");
+}
+
+void loop() {
+  // Lecture des capteurs (exemple)
+  float temperature = 25.5;  // Remplacer par la lecture réelle du capteur
+  float humidity = 65.2;     // Remplacer par la lecture réelle du capteur
+  
+  // Création du JSON
+  DynamicJsonDocument doc(200);
+  doc["device_id"] = deviceId;
+  doc["temperature"] = temperature;
+  doc["humidity"] = humidity;
+  
+  // Envoi des données
+  if(WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(apiUrl);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-API-Key", apiKey);
+    
+    String jsonString;
+    serializeJson(doc, jsonString);
+    
+    int httpResponseCode = http.POST(jsonString);
+    
+    if(httpResponseCode > 0) {
+      String response = http.getString();
+      Serial.println("Code HTTP: " + String(httpResponseCode));
+      Serial.println("Réponse: " + response);
+    } else {
+      Serial.println("Erreur: " + http.errorToString(httpResponseCode));
+    }
+    
+    http.end();
+  }
+  
+  delay(60000); // Envoi toutes les minutes
+}</pre>
+                </div>
+                
+                <div id="arduino-code" class="device-code d-none">
+                    <h6>Exemple de code pour Arduino MKR WiFi 1010</h6>
+                    <pre class="bg-light p-2 rounded">
+#include &lt;WiFiNINA.h&gt;
+#include &lt;ArduinoHttpClient.h&gt;
+#include &lt;ArduinoJson.h&gt;
+
+const char* ssid = "VOTRE_SSID";
+const char* password = "VOTRE_PASSWORD";
+const char* server = "{{ request.host }}";
+const char* path = "/api/data";
+const char* apiKey = "VOTRE_CLE_API";
+const int deviceId = 1; // ID de l'appareil que vous avez créé
+const int port = 5000;
+
+WiFiClient wifi;
+HttpClient client = HttpClient(wifi, server, port);
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial);
+  
+  WiFi.begin(ssid, password);
+  Serial.print("Connexion au WiFi");
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  
+  Serial.println();
+  Serial.println("Connecté au WiFi");
+}
+
+void loop() {
+  // Lecture des capteurs (exemple)
+  float temperature = 25.5;  // Remplacer par la lecture réelle du capteur
+  float humidity = 65.2;     // Remplacer par la lecture réelle du capteur
+  
+  // Création du JSON
+  DynamicJsonDocument doc(200);
+  doc["device_id"] = deviceId;
+  doc["temperature"] = temperature;
+  doc["humidity"] = humidity;
+  
+  // Sérialisation en JSON
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  // Envoi des données
+  client.beginRequest();
+  client.post(path);
+  client.sendHeader("Content-Type", "application/json");
+  client.sendHeader("X-API-Key", apiKey);
+  client.sendHeader("Content-Length", jsonString.length());
+  client.beginBody();
+  client.print(jsonString);
+  client.endRequest();
+  
+  // Lecture de la réponse
+  int statusCode = client.responseStatusCode();
+  String response = client.responseBody();
+  
+  Serial.print("Status code: ");
+  Serial.println(statusCode);
+  Serial.print("Response: ");
+  Serial.println(response);
+  
+  delay(60000); // Envoi toutes les minutes
+}</pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // API Key generation
+    const generateApiKeyBtn = document.getElementById('generateApiKey');
+    const apiKeyInput = document.getElementById('apiKey');
+    const copyApiKeyBtn = document.getElementById('copyApiKey');
+    
+    if (generateApiKeyBtn) {
+        generateApiKeyBtn.addEventListener('click', function() {
+            fetch('{{ url_for("generate_api_key") }}')
+                .then(response => response.json())
+                .then(data => {
+                    apiKeyInput.value = data.api_key;
+                    alert('Nouvelle clé API générée avec succès !');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Erreur lors de la génération de la clé API.');
+                });
+        });
+    }
+    
+    if (copyApiKeyBtn) {
+        copyApiKeyBtn.addEventListener('click', function() {
+            apiKeyInput.select();
+            document.execCommand('copy');
+            alert('Clé API copiée dans le presse-papier !');
+        });
+    }
+    
+    // Device-specific instructions
+    const instructionsModal = document.getElementById('instructionsModal');
+    if (instructionsModal) {
+        instructionsModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const mcName = button.getAttribute('data-mc');
+            const modalTitle = instructionsModal.querySelector('.modal-title');
+            
+            // Hide all code examples
+            const deviceCodes = document.querySelectorAll('.device-code');
+            deviceCodes.forEach(code => code.classList.add('d-none'));
+            
+            // Show specific code example
+            if (mcName === 'ESP32') {
+                document.getElementById('esp32-code').classList.remove('d-none');
+                modalTitle.textContent = 'Instructions pour ESP32';
+            } else if (mcName === 'ESP8266') {
+                document.getElementById('esp8266-code').classList.remove('d-none');
+                modalTitle.textContent = 'Instructions pour ESP8266';
+            } else if (mcName === 'Arduino MKR WiFi 1010') {
+                document.getElementById('arduino-code').classList.remove('d-none');
+                modalTitle.textContent = 'Instructions pour Arduino MKR WiFi 1010';
+            } else {
+                modalTitle.textContent = `Instructions pour ${mcName}`;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
