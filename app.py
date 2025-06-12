@@ -637,6 +637,33 @@ def download(file_type, station, year, month):
         return "Fichier non trouvé", 404
     return send_file(file_path, as_attachment=True)
 
+@app.route('/register')
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    return render_template('register.html')
+
+# Remplacer la route forgot_password précédente par celle-ci
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        
+        if user:
+            # Ici vous pourriez implémenter l'envoi d'email de réinitialisation
+            flash('Si cette adresse email existe dans notre base de données, vous recevrez les instructions de réinitialisation.', 'info')
+        else:
+            # On envoie le même message pour ne pas divulguer si l'email existe ou non
+            flash('Si cette adresse email existe dans notre base de données, vous recevrez les instructions de réinitialisation.', 'info')
+        
+        return redirect(url_for('login'))
+    
+    return render_template('forgot_password.html')
 # ------------------ LANCEMENT ------------------
 if __name__ == "__main__":
     init_db()
